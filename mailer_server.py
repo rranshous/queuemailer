@@ -7,7 +7,7 @@ from configsmash import ConfigSmasher
 from utils.kawaiiqueue import KawaiiQueueClient
 from utils.maillib import Mail, emailError
 
-class Mailer(object):
+class QueueMailer(object):
     """
     sits on queue, mailing given msgs
     """
@@ -76,6 +76,23 @@ class Mailer(object):
                             replacement_dict=qmsg.body.template_args
 
                     )
+
+                    # the attachments should come w/ meta data
+                    # and gzip'd
+                    for i,attachment_data in enumerate(qmsg.body.get('attachments_data')):
+
+                        # hopefully we got gzipped data, but maybe not
+                        if 'gzip_data' in attachment_data:
+                            data = zlib.decompress(attachment_data.get('gzip_data'))
+                        else:
+                            data = attachment_data.get('data')
+
+                        # add our attachment
+                        mail.add_attachment(name=attachment_data.get('name','attachment%s' % i),
+                                            data=data)
+                        
+                    # send it off!
+                    mail.send()
 
                 # ohh nooos
                 except (MailerException, emailError), ex:
