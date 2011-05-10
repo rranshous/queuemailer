@@ -9,6 +9,10 @@ import argparse
 from configsmash import ConfigSmasher
 from cStringIO import StringIO
 from findfiles import find_files_iter as find_files
+import zipfile
+from utils.kawaiiqueue import KawaiiQueueClient
+import os.path
+from base64 import b64encode
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -46,7 +50,9 @@ class MailerClient(object):
             log.debug('attachment path: %s' % path)
 
             # get it's name
-            name = os.path.filename(path)
+            if path.endswith('/'):
+                path = path[:-1] # it's a dir
+            name = os.path.basename(path)
 
             log.debug('attachment name: %s' % name)
 
@@ -87,19 +93,34 @@ class MailerClient(object):
                         rel_file_path = '/%s' % rel_file_path
 
                     log.debug('rel file path: %s' % rel_file_path)
+                    log.debug('adding file data to zip')
 
                     # add it to our zip
-                    log.debug('adding file data to zip')
                     with file(file_path,'r') as fh:
                         _zip.writestr(rel_file_path,fh.read())
 
                 # the attachment name needs to end in .zip
                 name = '%s.zip' % name
 
+                log.debug('updating zipped files created flag')
+
+                # Mark the files as having been created on Windows so that
+                # Unix permissions are not inferred as 0000
+                for zfile in _zip.filelist:
+                    zfile.create_system = 0 
+
+                log.debug('reading zip from memory')
+
                 # get our zip's data (closing it's buffer)
                 zip_fh.seek(0)
                 data = zip_fh.read()
+                _zip.close()
                 zip_fh.close()
+
+                # encode our data
+                data = b64encode(data)
+
+                log.debug('adding to attachments list')
                 
                 # add it to our attachment list
                 attachments.append({
@@ -110,17 +131,35 @@ class MailerClient(object):
             # it's not a path, just a single file
             else:
 
+                log.debug('reading attachment file')
+
                 # read in and gzip the data
                 with file(path,'r') as fh:
+
+                    log.debug('reading data')
+
+                    # for now skip the compression
+                    data = fh.read()
+                    #data = zlib.compress(fh.read())
+
+                    # encode our data
+                    data = b64encode(data)
+
+                    log.debug('adding to attachment list')
+
                     # add the data to our list
                     attachments.append({
                        'name':name,
-                       'gzip_data':zlip.compress(fh.read())
+                       #'gzip_data':data
+                       'data':data
                     })
 
         # if we have any attachments, add them to the message
         if attachments:
+            log.debug('adding attachments to message')
             msg_data['attachments'] = attachments
+
+        log.debug('sending message to queue')
 
         # add it to the queue
         self.queue.send_message('email',msg_data)
@@ -141,7 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('body',help='body of email')
 
     # the rest of the args are file / dir paths
-    parser.add_argument('attachment_paths',nargs='+',
+    parser.add_argument('attachment_paths',nargs='*',
                         help='attach files / dirs')
 
     # parse those cmd line options!
@@ -152,7 +191,7 @@ if __name__ == '__main__':
     log.debug('reading config')
 
     # read in from the configs
-    config = ConfigSmasher('configs').smash()
+    config = ConfigSmasher(['configs']).smash()
 
     log.debug('config: %s' % config)
     log.debug('creating queue')
@@ -171,7 +210,7 @@ if __name__ == '__main__':
     log.debug('queueing mail')
 
     # have the mailer send the msg to the queue
-    mailer.queue_mail(options.to,
-                      options.subject,
-                      options.body,
-                      options.attachment_paths)
+    mailer.queue_mail(args.to,
+                      args.subject,
+                      args.body,
+                      args.attachment_paths)
