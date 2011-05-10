@@ -4,3 +4,6 @@
 [submodule "configsmash"]
 	path = configsmash
 	url = git@github.com:rranshous/configsmash
+[submodule "findfiles"]
+	path = findfiles
+	url = git@github.com:rranshous/findfiles
