@@ -43,7 +43,7 @@ class QueueMailer(object):
         self.sender = sender
 
         # sleep time between queue exhaustions
-        self.sleep_time = 1
+        self.sleep_time = 10
 
     def start(self):
 
@@ -68,9 +68,6 @@ class QueueMailer(object):
 
             # out of msgs ? time to sleep
             sleep(self.sleep_time)
-
-            # sleep a lil bit longer each time
-            self.sleep_time += 1
 
     def _loop(self):
 

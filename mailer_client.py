@@ -73,9 +73,7 @@ class MailerClient(object):
                 log.debug('creating our zip')
 
                 # create our new zip
-                _zip = zipfile.ZipFile(zip_fh,'a',
-                                       zipfile.ZIP_DEFLATED,
-                                       False)
+                _zip = zipfile.ZipFile(zip_fh,'w')
 
                 log.debug('going through files')
 
@@ -95,8 +93,9 @@ class MailerClient(object):
                     log.debug('rel file path: %s' % rel_file_path)
                     log.debug('adding file data to zip')
 
-                    # add it to our zip
-                    with file(file_path,'r') as fh:
+                    #_zip.write(file_path)
+                    # write the data to the zipfile
+                    with file(file_path,'rb') as fh:
                         _zip.writestr(rel_file_path,fh.read())
 
                 # the attachment name needs to end in .zip
@@ -113,9 +112,13 @@ class MailerClient(object):
 
                 # get our zip's data (closing it's buffer)
                 zip_fh.seek(0)
-                data = zip_fh.read()
                 _zip.close()
+                data = zip_fh.getvalue()
                 zip_fh.close()
+
+                # save the data down DEBUG
+                with file('./out.zip','wb') as fh:
+                    fh.write(data)
 
                 # encode our data
                 data = b64encode(data)
@@ -138,9 +141,11 @@ class MailerClient(object):
 
                     log.debug('reading data')
 
-                    # for now skip the compression
+                    # read the data 
                     data = fh.read()
-                    #data = zlib.compress(fh.read())
+
+                    # compress it
+                    data = zlib.compress(data)
 
                     # encode our data
                     data = b64encode(data)
@@ -150,8 +155,7 @@ class MailerClient(object):
                     # add the data to our list
                     attachments.append({
                        'name':name,
-                       #'gzip_data':data
-                       'data':data
+                       'gzip_data':data
                     })
 
         # if we have any attachments, add them to the message
